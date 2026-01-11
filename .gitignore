@@ -1,0 +1,6 @@
+todo.txt
+*.o
+*.exe
+*.txt
+
+.vscode/
