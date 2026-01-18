@@ -4,7 +4,6 @@
 #include <string.h>
 #include <assert.h>
 #include <gtk/gtk.h>
-#include <stdbool.h>
 
 #include "filesave.h"
 
@@ -18,17 +17,17 @@ short read_today(void)
   FILE *fp;
   short total_today = 0;
   
-  if ((fp = fopen(FILENAME, "rb")) == NULL) {
+  if ((fp = fopen(FILENAME, "r")) == NULL) {
     return total_today;
   }
   
   int len = strlen(FORMAT);
   time_t cur_date = time(NULL);
-  char cur_date_s[11], s[len + 1];
+  char cur_date_s[12], s[len + 1];
 
   assert(len == 16);
 
-  strftime(cur_date_s, sizeof(cur_date_s), "%Y-%m-%d", localtime(&cur_date));
+  strftime(cur_date_s, sizeof(cur_date_s), "%Y-%m-%d\n", localtime(&cur_date));
 
   while(fgets(s, len + 1, fp) != NULL) {
     // if today's string exist
@@ -43,18 +42,21 @@ short read_today(void)
 }
 
 /*
-if save file exists, rewrite is required after reading, hence rb+ mode first, then wb+ mode. If file doesn't exist, there's nothing to read, therefore wb+ is sufficient.
+- file doesn't exist
+- file exists, but today's record doesn't
+- file and today's record exist
 */
+
+// check the correct mode for fopen
 void write_today(short new_time)
 {
+  g_print("write_today()\n");
   FILE *fp;
-  bool needs_rewrite = true;
   
   // if file doesn't exist
   if ((fp = fopen(FILENAME, "rb+")) == NULL) {
     // create one
     fp = fopen(FILENAME, "wb+");
-    needs_rewrite = false;
   }
 
   int len = strlen(FORMAT);
@@ -63,32 +65,48 @@ void write_today(short new_time)
 
   strftime(cur_date_s, sizeof(cur_date_s), "%Y-%m-%d", localtime(&cur_date));
 
+  long f_pos = -1L;
+  int i = 0;
   short buf_size = 5;
   char **buf;
-  
+
   if ((buf = g_try_malloc(sizeof (char *) * buf_size)) == NULL) {
     g_print("Failed to save progress. Insufficient memory\n");
     fclose(fp);
     return;
   }
-  
-  int i = 0;
+
   int buf_capacity = buf_size;
-  bool today_str_exist = false;
 
   // if file is empty, doesn't contain today's string, or until the today's string is found
   while(fgets(s, len + 1, fp) != NULL) {
-    if (i+1 > buf_capacity) {
-      buf_capacity += buf_size;
-      if (!expand_buf(&buf, buf_capacity)) {
+    if (f_pos != -1L) {
+      if (i+1 > buf_capacity) {
+        buf_capacity += buf_size;
+        if (!expand_buf(&buf, buf_capacity)) {
+          cleanup(&buf, i);
+          fclose(fp);
+          return;
+        }
+      }
+      
+      // store string in buf
+      char *f_s;
+      if ((f_s = g_try_malloc(len + 1)) == NULL) {
+        g_print("Failed to save progress. Insufficient memory\n");
         cleanup(&buf, i);
         fclose(fp);
         return;
       }
+
+      strcpy(f_s, s);
+      buf[i++] = f_s;
     }
 
     // if today's string exist
-    if (strstr(s, cur_date_s) != NULL) {
+    if (f_pos == -1L && strstr(s, cur_date_s) != NULL) {
+      f_pos = ftell(fp);
+      
       // retrieve the old value
       short total_today = 0;
       sscanf(s, "%*d-%*d-%*d %hd\n", &total_today);
@@ -98,6 +116,15 @@ void write_today(short new_time)
         cleanup(&buf, i);
         fclose(fp);
         return;
+      }
+
+      if (i+1 > buf_capacity) {
+        buf_capacity += buf_size;
+        if (!expand_buf(&buf, buf_capacity)) {
+          cleanup(&buf, i);
+          fclose(fp);
+          return;
+        }
       }
       
       // update the string
@@ -109,28 +136,16 @@ void write_today(short new_time)
         return;
       }
       sprintf(updated_s, "%s %4.4hd\n", cur_date_s, new_time);
-      today_str_exist = true;
-      // puts(updated_s);
-      buf[i++] = updated_s;
-    } else {
-      // store string in buf
-      char *f_s;
-      if ((f_s = g_try_malloc(len + 1)) == NULL) {
-        g_print("Failed to save progress. Insufficient memory\n");
-        cleanup(&buf, i);
-        fclose(fp);
-        return;
-      }
+      puts(updated_s);
 
-      strcpy(f_s, s);
-      // puts(f_s);
-      buf[i++] = f_s;
+      // store the updated string in buf
+      buf[i++] = updated_s;
     }
   }
 
-  // g_print("Capacity: %d, i = %d\n", buf_capacity, i);
-  // if file is empty
-  if (!today_str_exist) {
+  // if file is not empty and a matching line was found
+  g_print("Capacity: %d, i = %d\n", buf_capacity, i);
+  if (i == 0) {
     char *updated_s;
     if ((updated_s = g_try_malloc(len + 1)) == NULL) {
       g_print("Failed to save progress. Insufficient memory\n");
@@ -139,16 +154,10 @@ void write_today(short new_time)
       return;
     }
     sprintf(updated_s, "%s %4.4hd\n", cur_date_s, new_time);
-    // puts(updated_s);
+    puts(updated_s);
     buf[i++] = updated_s;
-  }
-  
-  
-  if (needs_rewrite) {
-    fclose(fp);
-    fp = fopen(FILENAME, "wb+");
   } else {
-    rewind(fp);
+    fseek(fp, f_pos - len - 1, SEEK_SET);
   }
 
   // update save file
@@ -159,7 +168,7 @@ void write_today(short new_time)
 
   // clear the buffer
   cleanup(&buf, i);
-  // g_print("Updated progress\n");
+  g_print("Updated progress\n");
   fclose(fp);
 }
 

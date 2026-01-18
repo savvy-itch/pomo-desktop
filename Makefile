@@ -1,4 +1,5 @@
-CFLAGS = $(shell pkg-config --cflags gtk4)
+CFLAGS += -g -O0
+CFLAGS += $(shell pkg-config --cflags gtk4)
 LDFLAGS = $(shell pkg-config --libs gtk4)
 
 pomodoro: main.o filesave.o
