@@ -60,6 +60,8 @@ void write_today(short new_time)
   int len = strlen(FORMAT);
   time_t cur_date = time(NULL);
   char cur_date_s[12], s[len + 1];
+  
+  assert(len == 16);
 
   strftime(cur_date_s, sizeof(cur_date_s), "%Y-%m-%d", localtime(&cur_date));
 
@@ -108,7 +110,8 @@ void write_today(short new_time)
         fclose(fp);
         return;
       }
-      sprintf(updated_s, "%s %4.4hd\n", cur_date_s, new_time);
+      // sprintf(updated_s, "%s %4.4hd\n", cur_date_s, new_time);
+      snprintf(updated_s, len + 1, "%.10s %4.4hd\n", cur_date_s, new_time);
       today_str_exist = true;
       // puts(updated_s);
       buf[i++] = updated_s;
@@ -123,12 +126,10 @@ void write_today(short new_time)
       }
 
       strcpy(f_s, s);
-      // puts(f_s);
       buf[i++] = f_s;
     }
   }
 
-  // g_print("Capacity: %d, i = %d\n", buf_capacity, i);
   // if file is empty
   if (!today_str_exist) {
     char *updated_s;
@@ -138,7 +139,8 @@ void write_today(short new_time)
       fclose(fp);
       return;
     }
-    sprintf(updated_s, "%s %4.4hd\n", cur_date_s, new_time);
+    // sprintf(updated_s, "%s %4.4hd\n", cur_date_s, new_time);
+    snprintf(updated_s, len + 1, "%.10s %4.4hd\n", cur_date_s, new_time);
     // puts(updated_s);
     buf[i++] = updated_s;
   }

@@ -2,5 +2,8 @@ todo.txt
 *.o
 *.exe
 *.txt
+*.gresource
+*.compiled
+pomodoro.gresource.c
 
 .vscode/

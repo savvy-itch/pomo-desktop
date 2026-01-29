@@ -1,6 +1,6 @@
 #define FILENAME "./save.txt"
 #define FORMAT "yyyy-mm-dd xxxx\n"
-#define UPD_FREQ 10
+#define UPD_FREQ 10 // in seconds
 
 /* Retrieves today's work time in minutes from save file */
 short read_today(void);

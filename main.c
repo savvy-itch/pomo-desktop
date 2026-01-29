@@ -4,11 +4,7 @@
 #include <stdbool.h>
 
 #include "filesave.h"
-
-typedef struct {
-  int work_time;
-  int break_time;
-} Prefs;
+#include "settings-dialog.h"
 
 typedef struct {
   GtkWidget *clock;
@@ -25,6 +21,7 @@ typedef struct {
   bool is_ticking;
   bool is_work;
   short total_today;
+  GtkWidget *clock_lbl;
 } AppState;
 
 static void layout(GtkApplication *app, AppState *state);
@@ -32,20 +29,19 @@ static void handle_click(GtkButton *btn, gpointer user_data);
 static gboolean countdown(gpointer user_data);
 static gboolean handle_record_update(gpointer user_data);
 static void update_timer(GtkLabel *state_lbl, GtkLabel *clock_lbl);
+static void on_settings_changed(GSettings *settings, gchar *key, gpointer user_data);
 
-static Prefs app_prefs;
 static AppState state;
 
 int main(int argc, char *argv[])
 {
   GtkApplication *app;
   int status;
-  state.secs_left = 5;
+  GSettings *settings = g_settings_new("org.gtk.pomodoro");
+  int work_dur = g_settings_get_int(settings, "workdur");
+  state.secs_left = work_dur;
   state.is_ticking = false;
   state.is_work = true;
-
-  app_prefs.work_time = 5;
-  app_prefs.break_time = 6;
 
   app = gtk_application_new("org.gtk.pomodoro", G_APPLICATION_DEFAULT_FLAGS);
   g_signal_connect(app, "activate", G_CALLBACK(layout), &state);
@@ -55,8 +51,6 @@ int main(int argc, char *argv[])
   return status;
 }
 
-// putting update function in layout() seems to have caused it to run only once
-
 static void layout(GtkApplication *app, AppState *state)
 {
   GtkWidget *window;
@@ -65,10 +59,11 @@ static void layout(GtkApplication *app, AppState *state)
   GtkWidget *state_lbl;
   GtkWidget *total_today_lbl;
   GtkWidget *btn;
+  GtkWidget *settings_btn;
 
   window = gtk_application_window_new(app);
   gtk_window_set_title(GTK_WINDOW(window), "Pomodoro");
-  gtk_window_set_default_size(GTK_WINDOW(window), 400, 400);
+  gtk_window_set_default_size(GTK_WINDOW(window), 500, 500);
 
   box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
   gtk_widget_set_halign(box, GTK_ALIGN_CENTER);
@@ -86,6 +81,10 @@ static void layout(GtkApplication *app, AppState *state)
   rec_data->total_today_lbl = total_today_lbl;
   g_timeout_add_seconds(UPD_FREQ, handle_record_update, rec_data);
 
+  settings_btn = gtk_button_new_with_label("Settings");
+  g_signal_connect(settings_btn, "clicked", G_CALLBACK(on_settings_clicked), window);
+  gtk_box_append(GTK_BOX(box), settings_btn);
+
   state_lbl = gtk_label_new("Work");
   gtk_widget_set_halign(state_lbl, GTK_ALIGN_CENTER);
   gtk_widget_set_valign(state_lbl, GTK_ALIGN_CENTER);
@@ -99,6 +98,9 @@ static void layout(GtkApplication *app, AppState *state)
   gtk_widget_set_halign(clock_lbl, GTK_ALIGN_CENTER);
   gtk_widget_set_valign(clock_lbl, GTK_ALIGN_CENTER);
   gtk_box_append(GTK_BOX(box), clock_lbl);
+  state->clock_lbl = clock_lbl;
+  GSettings *settings = g_settings_new("org.gtk.pomodoro");
+  g_signal_connect(settings, "changed", G_CALLBACK(on_settings_changed), NULL);
   
   btn = gtk_button_new_with_label("Start");
   gtk_widget_set_halign(btn, GTK_ALIGN_CENTER);
@@ -112,6 +114,7 @@ static void layout(GtkApplication *app, AppState *state)
   g_signal_connect(btn, "clicked", G_CALLBACK(handle_click), elems);
   gtk_box_append(GTK_BOX(box), btn);
 
+  // present a window to the user
   gtk_window_present(GTK_WINDOW(window));
 }
 
@@ -141,11 +144,14 @@ static gboolean countdown(gpointer user_data)
   if (state.secs_left == 0) {
     state.is_work = !state.is_work;
     state.is_ticking = false;
+    GSettings *settings = g_settings_new("org.gtk.pomodoro");
+    int work_dur = g_settings_get_int(settings, "workdur");
+    int break_dur = g_settings_get_int(settings, "breakdur");
     // if work interval has passed
     if (!state.is_work) {
-      state.total_today += app_prefs.work_time;
+      state.total_today += work_dur;
     }
-    state.secs_left = state.is_work ? app_prefs.work_time : app_prefs.break_time;
+    state.secs_left = state.is_work ? work_dur : break_dur;
     gtk_button_set_label(btn, "Start");
     update_timer(state_lbl, clock);
     return G_SOURCE_REMOVE;
@@ -176,4 +182,19 @@ static gboolean handle_record_update(gpointer user_data)
   gtk_label_set_text(total_today_lbl, total_s);
   g_free(total_s);
   return TRUE;
+}
+
+static void on_settings_changed(GSettings *settings, gchar *key, gpointer user_data)
+{
+  if (!state.is_ticking) {
+    int dur = state.is_work 
+      ? g_settings_get_int(settings, "workdur") 
+      : g_settings_get_int(settings, "breakdur");
+    state.secs_left = dur;
+    int mins = state.secs_left / 60;
+    int secs = state.secs_left % 60;
+    gchar *text = g_strdup_printf("%2.2d:%2.2d", mins, secs);
+    gtk_label_set_text(GTK_LABEL(state.clock_lbl), text);
+    g_free(text);
+  }
 }
