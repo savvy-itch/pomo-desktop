@@ -1,8 +1,9 @@
 #include <gtk/gtk.h>
 
-G_DECLARE_FINAL_TYPE (PomoSettingsDialog, pomo_settings_dialog, POMO, SETTINGS_DIALOG, GtkWindow);
+G_DECLARE_FINAL_TYPE (PomoSettingsDialog, pomo_settings_dialog, POMO, SETTINGS_DIALOG, GtkApplicationWindow);
 
 /*
 creates and displays a new settings modal window
 */
 void on_settings_clicked(GtkButton *btn, gpointer user_data);
+void pomo_open_settings_window(GAction *action, GVariant *parameter, gpointer user_data);

@@ -65,6 +65,16 @@ static void layout(GtkApplication *app, AppState *state)
   gtk_window_set_title(GTK_WINDOW(window), "Pomodoro");
   gtk_window_set_default_size(GTK_WINDOW(window), 500, 500);
 
+  g_autoptr(GSimpleAction) open_action = 
+    g_simple_action_new("open", NULL);
+  g_signal_connect(open_action, "activate", G_CALLBACK (pomo_open_settings_window), window);
+  g_action_map_add_action(G_ACTION_MAP(window), G_ACTION(open_action));
+
+  gtk_application_set_accels_for_action(app, "win.open",
+    (const char *[]) { "<Ctrl>p", NULL });
+  gtk_application_set_accels_for_action(app, "win.close",
+    (const char *[]) { "Escape", NULL });
+
   box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
   gtk_widget_set_halign(box, GTK_ALIGN_CENTER);
   gtk_widget_set_valign(box, GTK_ALIGN_CENTER);
